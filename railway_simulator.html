@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Railway Control Simulator</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:14px;background:#f4f3ef;color:#2c2c2a;min-height:100vh;padding:20px}
+h1{font-size:18px;font-weight:500;color:#2c2c2a;margin-bottom:4px}
+.subtitle{font-size:12px;color:#888780;margin-bottom:16px}
+.rail-wrap{max-width:720px;margin:0 auto;display:flex;flex-direction:column;gap:12px}
+.map-card{background:#f1efe8;border:0.5px solid #d3d1c7;border-radius:12px;padding:14px;overflow:hidden}
+.controls-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.t-card{background:#fff;border:0.5px solid #d3d1c7;border-radius:12px;padding:14px;display:flex;flex-direction:column;gap:10px;transition:border-color .3s}
+.t-card.t1-active{border-color:#185FA5}
+.t-card.t2-active{border-color:#993C1D}
+.t-card.is-waiting{border-color:#854F0B}
+.card-top{display:flex;align-items:center;gap:8px}
+.train-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+.dot-t1{background:#378ADD}
+.dot-t2{background:#D85A30}
+.train-label{font-size:14px;font-weight:500}
+.status-pill{margin-left:auto;font-size:11px;padding:2px 8px;border-radius:20px;font-weight:500}
+.sp-stopped{background:#f1efe8;color:#888780}
+.sp-moving{background:#EAF3DE;color:#3B6D11}
+.sp-waiting{background:#FAEEDA;color:#854F0B}
+.info-row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px}
+.info-cell{background:#f4f3ef;border-radius:8px;padding:7px 9px}
+.ic-lbl{font-size:11px;color:#888780;margin-bottom:2px}
+.ic-val{font-size:13px;font-weight:500;color:#2c2c2a}
+.prog-wrap{display:flex;flex-direction:column;gap:4px}
+.prog-meta{display:flex;justify-content:space-between;font-size:11px;color:#888780}
+.prog-track{height:3px;background:#d3d1c7;border-radius:2px;overflow:hidden}
+.prog-fill{height:100%;width:0%;border-radius:2px;transition:width .08s linear}
+.pf-t1{background:#378ADD}
+.pf-t2{background:#D85A30}
+.warn-box{display:none;align-items:center;gap:7px;background:#FAEEDA;border:0.5px solid #EF9F27;border-radius:8px;padding:7px 10px;font-size:12px;color:#633806}
+.warn-box.show{display:flex}
+.warn-led{width:7px;height:7px;border-radius:50%;background:#EF9F27;flex-shrink:0;animation:led .7s ease-in-out infinite}
+@keyframes led{0%,100%{opacity:1}50%{opacity:.2}}
+.btn-row{display:flex;gap:6px}
+button{border:0.5px solid #b4b2a9;background:#fff;border-radius:8px;padding:8px 12px;font-size:12px;font-family:inherit;cursor:pointer;color:#2c2c2a;transition:all .15s}
+button:hover{background:#f4f3ef}
+button:active{transform:scale(.98)}
+button:disabled{opacity:.35;cursor:not-allowed;transform:none}
+.btn-move{flex:1;font-weight:500}
+.btn-move.t1-btn{color:#0C447C;border-color:#185FA5}
+.btn-move.t1-btn:hover{background:#E6F1FB}
+.btn-move.t2-btn{color:#712B13;border-color:#993C1D}
+.btn-move.t2-btn:hover{background:#FAECE7}
+.btn-dir{padding:8px 10px;font-size:13px}
+.bottom-row{display:grid;grid-template-columns:240px 1fr;gap:10px}
+.block-card,.log-card{background:#fff;border:0.5px solid #d3d1c7;border-radius:12px;padding:14px}
+.card-title{font-size:12px;font-weight:500;color:#888780;margin-bottom:10px;letter-spacing:.3px}
+.block-list{display:flex;flex-direction:column;gap:5px}
+.b-row{display:flex;align-items:center;gap:8px;padding:6px 9px;border-radius:8px;border:0.5px solid #d3d1c7;background:#f4f3ef;font-size:12px;transition:all .3s}
+.b-row.occ-t1{background:#E6F1FB;border-color:#185FA5}
+.b-row.occ-t2{background:#FAECE7;border-color:#993C1D}
+.b-led{width:6px;height:6px;border-radius:50%;background:#b4b2a9;flex-shrink:0;transition:all .3s}
+.occ-t1 .b-led{background:#378ADD}
+.occ-t2 .b-led{background:#D85A30}
+.b-id{font-weight:500;min-width:36px}
+.b-shared{font-size:10px;padding:1px 6px;border-radius:10px;background:#EEEDFE;color:#3C3489;border:0.5px solid #7F77DD}
+.b-status{margin-left:auto;font-size:11px;color:#888780}
+.occ-t1 .b-status{color:#0C447C;font-weight:500}
+.occ-t2 .b-status{color:#712B13;font-weight:500}
+#log-scroll{height:140px;overflow-y:auto;font-size:11px;font-family:'Courier New',monospace;line-height:1.7;display:flex;flex-direction:column;gap:1px}
+#log-scroll::-webkit-scrollbar{width:3px}
+#log-scroll::-webkit-scrollbar-thumb{background:#b4b2a9;border-radius:2px}
+.log-entry{display:flex;gap:7px;padding:1px 0;border-bottom:0.5px solid #f1efe8}
+.l-ts{color:#b4b2a9;flex-shrink:0;width:60px}
+.l-src{flex-shrink:0;width:36px;font-weight:bold}
+.l-t1{color:#185FA5}.l-t2{color:#993C1D}.l-sys{color:#888780}
+.l-msg{flex:1;color:#2c2c2a}
+.l-warn{color:#854F0B}.l-ok{color:#3B6D11}.l-info{color:#888780}
+.map-legend{display:flex;gap:14px;margin-top:8px;flex-wrap:wrap}
+.leg-item{display:flex;align-items:center;gap:5px;font-size:11px;color:#888780}
+.leg-line{width:20px;height:2px;border-radius:1px;flex-shrink:0}
+@media(max-width:560px){
+  .controls-grid{grid-template-columns:1fr}
+  .bottom-row{grid-template-columns:1fr}
+  .info-row{grid-template-columns:1fr 1fr}
+}
+</style>
+</head>
+<body>
+<div class="rail-wrap">
+  <div>
+    <h1>Railway Control Simulator</h1>
+    <div class="subtitle">Dual-train collision prevention — shared block B–C enforces single occupancy</div>
+  </div>
+
+  <div class="map-card">
+    <svg id="rsvg" viewBox="0 0 640 210" width="100%" style="display:block">
+      <rect width="640" height="210" fill="transparent"/>
+      <line id="seg-A-B" x1="55" y1="68" x2="215" y2="130" stroke="#D3D1C7" stroke-width="4" stroke-linecap="round"/>
+      <line id="seg-B-C" x1="215" y1="130" x2="425" y2="130" stroke="#AFA9EC" stroke-width="4" stroke-linecap="round"/>
+      <line id="seg-C-D" x1="425" y1="130" x2="585" y2="68" stroke="#D3D1C7" stroke-width="4" stroke-linecap="round"/>
+      <line id="seg-B-E" x1="55" y1="168" x2="215" y2="130" stroke="#D3D1C7" stroke-width="4" stroke-linecap="round"/>
+      <line id="seg-C-F" x1="425" y1="130" x2="585" y2="168" stroke="#D3D1C7" stroke-width="4" stroke-linecap="round"/>
+
+      <g id="sta-A"><circle cx="55" cy="68" r="10" fill="white" stroke="#B4B2A9" stroke-width="1.5"/><text x="55" y="56" text-anchor="middle" font-size="12" font-weight="500" fill="#5F5E5A" font-family="sans-serif">A</text></g>
+      <g id="sta-B"><circle cx="215" cy="130" r="11" fill="white" stroke="#888780" stroke-width="1.5"/><text x="215" y="118" text-anchor="middle" font-size="12" font-weight="500" fill="#444441" font-family="sans-serif">B</text><text x="215" y="150" text-anchor="middle" font-size="9" fill="#888780" font-family="sans-serif">junction</text></g>
+      <g id="sta-C"><circle cx="425" cy="130" r="11" fill="white" stroke="#888780" stroke-width="1.5"/><text x="425" y="118" text-anchor="middle" font-size="12" font-weight="500" fill="#444441" font-family="sans-serif">C</text><text x="425" y="150" text-anchor="middle" font-size="9" fill="#888780" font-family="sans-serif">junction</text></g>
+      <g id="sta-D"><circle cx="585" cy="68" r="10" fill="white" stroke="#B4B2A9" stroke-width="1.5"/><text x="585" y="56" text-anchor="middle" font-size="12" font-weight="500" fill="#5F5E5A" font-family="sans-serif">D</text></g>
+      <g id="sta-E"><circle cx="55" cy="168" r="10" fill="white" stroke="#B4B2A9" stroke-width="1.5"/><text x="55" y="192" text-anchor="middle" font-size="12" font-weight="500" fill="#5F5E5A" font-family="sans-serif">E</text></g>
+      <g id="sta-F"><circle cx="585" cy="168" r="10" fill="white" stroke="#B4B2A9" stroke-width="1.5"/><text x="585" y="192" text-anchor="middle" font-size="12" font-weight="500" fill="#5F5E5A" font-family="sans-serif">F</text></g>
+
+      <text x="120" y="88" font-size="8" fill="#B4B2A9" font-family="sans-serif" transform="rotate(-27,120,88)">A – B</text>
+      <text x="295" y="123" font-size="8" fill="#9F9CE8" font-family="sans-serif" text-anchor="middle">B – C  (shared)</text>
+      <text x="520" y="88" font-size="8" fill="#B4B2A9" font-family="sans-serif" transform="rotate(27,520,88)">C – D</text>
+      <text x="100" y="172" font-size="8" fill="#B4B2A9" font-family="sans-serif" transform="rotate(25,100,172)">B – E</text>
+      <text x="528" y="168" font-size="8" fill="#B4B2A9" font-family="sans-serif" transform="rotate(-25,528,168)">C – F</text>
+
+      <g id="t1-icon" transform="translate(55,68)">
+        <rect x="-14" y="-6" width="28" height="12" rx="3" fill="#378ADD"/>
+        <rect x="-10" y="-4" width="8" height="8" rx="1" fill="rgba(255,255,255,0.35)"/>
+        <text x="3" y="4" text-anchor="middle" font-size="7" fill="white" font-family="monospace" font-weight="bold">T1</text>
+        <polygon id="t1-arr" points="14,-4 19,0 14,4" fill="#185FA5"/>
+      </g>
+      <g id="t2-icon" transform="translate(585,168)">
+        <rect x="-14" y="-6" width="28" height="12" rx="3" fill="#D85A30"/>
+        <rect x="2" y="-4" width="8" height="8" rx="1" fill="rgba(255,255,255,0.35)"/>
+        <text x="-3" y="4" text-anchor="middle" font-size="7" fill="white" font-family="monospace" font-weight="bold">T2</text>
+        <polygon id="t2-arr" points="-14,-4 -19,0 -14,4" fill="#993C1D"/>
+      </g>
+    </svg>
+    <div class="map-legend">
+      <div class="leg-item"><div class="leg-line" style="background:#378ADD"></div>Train 1 — Route Alpha (A→B→C→D)</div>
+      <div class="leg-item"><div class="leg-line" style="background:#D85A30"></div>Train 2 — Route Beta (F→C→B→E)</div>
+      <div class="leg-item"><div class="leg-line" style="background:#7F77DD"></div>Shared block B–C</div>
+      <div class="leg-item"><div class="leg-line" style="background:#EF9F27"></div>Waiting / blocked</div>
+    </div>
+  </div>
+
+  <div class="controls-grid">
+    <div class="t-card" id="card-t1">
+      <div class="card-top">
+        <div class="train-dot dot-t1"></div>
+        <div class="train-label">Highland Express</div>
+        <div class="status-pill sp-stopped" id="sp-t1">Stopped</div>
+      </div>
+      <div class="info-row">
+        <div class="info-cell"><div class="ic-lbl">Position</div><div class="ic-val" id="pos-t1">Sta A</div></div>
+        <div class="info-cell"><div class="ic-lbl">Next stop</div><div class="ic-val" id="nxt-t1">—</div></div>
+        <div class="info-cell"><div class="ic-lbl">Direction</div><div class="ic-val" id="dir-t1">Fwd →</div></div>
+        <div class="info-cell"><div class="ic-lbl">Route</div><div class="ic-val" style="color:#185FA5">Alpha</div></div>
+        <div class="info-cell"><div class="ic-lbl">Block</div><div class="ic-val" id="blk-t1">—</div></div>
+        <div class="info-cell"><div class="ic-lbl">Remaining</div><div class="ic-val" id="rem-t1">—</div></div>
+      </div>
+      <div class="prog-wrap">
+        <div class="prog-meta"><span id="pf-t1">—</span><span id="pp-t1">—</span><span id="pt-t1">—</span></div>
+        <div class="prog-track"><div class="prog-fill pf-t1" id="pb-t1"></div></div>
+      </div>
+      <div class="warn-box" id="wb-t1"><div class="warn-led"></div><span id="wm-t1">Track occupied</span></div>
+      <div class="btn-row">
+        <button class="btn-move t1-btn" id="bm-t1" onclick="handleMove('t1')">→ Move to next stop</button>
+        <button class="btn-dir" id="bd-t1" onclick="toggleDir('t1')" title="Reverse direction">⇄</button>
+      </div>
+    </div>
+
+    <div class="t-card" id="card-t2">
+      <div class="card-top">
+        <div class="train-dot dot-t2"></div>
+        <div class="train-label">Coastal Runner</div>
+        <div class="status-pill sp-stopped" id="sp-t2">Stopped</div>
+      </div>
+      <div class="info-row">
+        <div class="info-cell"><div class="ic-lbl">Position</div><div class="ic-val" id="pos-t2">Sta F</div></div>
+        <div class="info-cell"><div class="ic-lbl">Next stop</div><div class="ic-val" id="nxt-t2">—</div></div>
+        <div class="info-cell"><div class="ic-lbl">Direction</div><div class="ic-val" id="dir-t2">← Rev</div></div>
+        <div class="info-cell"><div class="ic-lbl">Route</div><div class="ic-val" style="color:#993C1D">Beta</div></div>
+        <div class="info-cell"><div class="ic-lbl">Block</div><div class="ic-val" id="blk-t2">—</div></div>
+        <div class="info-cell"><div class="ic-lbl">Remaining</div><div class="ic-val" id="rem-t2">—</div></div>
+      </div>
+      <div class="prog-wrap">
+        <div class="prog-meta"><span id="pf-t2">—</span><span id="pp-t2">—</span><span id="pt-t2">—</span></div>
+        <div class="prog-track"><div class="prog-fill pf-t2" id="pb-t2"></div></div>
+      </div>
+      <div class="warn-box" id="wb-t2"><div class="warn-led"></div><span id="wm-t2">Track occupied</span></div>
+      <div class="btn-row">
+        <button class="btn-move t2-btn" id="bm-t2" onclick="handleMove('t2')">→ Move to next stop</button>
+        <button class="btn-dir" id="bd-t2" onclick="toggleDir('t2')" title="Reverse direction">⇄</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="bottom-row">
+    <div class="block-card">
+      <div class="card-title">Block occupancy</div>
+      <div class="block-list">
+        <div class="b-row" id="br-A-B"><div class="b-led"></div><span class="b-id">A–B</span><span style="font-size:10px;color:#b4b2a9">Alpha</span><span class="b-status">Free</span></div>
+        <div class="b-row" id="br-B-C"><div class="b-led"></div><span class="b-id">B–C</span><span class="b-shared">shared</span><span class="b-status">Free</span></div>
+        <div class="b-row" id="br-C-D"><div class="b-led"></div><span class="b-id">C–D</span><span style="font-size:10px;color:#b4b2a9">Alpha</span><span class="b-status">Free</span></div>
+        <div class="b-row" id="br-B-E"><div class="b-led"></div><span class="b-id">B–E</span><span style="font-size:10px;color:#b4b2a9">Beta</span><span class="b-status">Free</span></div>
+        <div class="b-row" id="br-C-F"><div class="b-led"></div><span class="b-id">C–F</span><span style="font-size:10px;color:#b4b2a9">Beta</span><span class="b-status">Free</span></div>
+      </div>
+    </div>
+    <div class="log-card">
+      <div class="card-title">Event log</div>
+      <div id="log-scroll"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+const BLYNK_TOKEN = "FzWISTXN8_wZogAwkAjMEfhbvLZLVqB4";
+
+async function sendMotorCommand(speed) {
+    const url = `https://blynk.cloud/external/api/update?token=${BLYNK_TOKEN}&V1=${speed}`;
+    try {
+        await fetch(url);
+        addLog('sys', `IoT: Sent speed ${speed} to motor`, 'ok');
+    } catch (e) {
+        addLog('sys', 'IoT: Failed to reach motor', 'warn');
+    }
+}
+const STA={A:{x:55,y:68},B:{x:215,y:130},C:{x:425,y:130},D:{x:585,y:68},E:{x:55,y:168},F:{x:585,y:168}};
+const ROUTES={t1:{stations:['A','B','C','D']},t2:{stations:['E','B','C','F']}};
+const BLOCKS={'A-B':{id:'A-B',occ:null},'B-C':{id:'B-C',occ:null},'C-D':{id:'C-D',occ:null},'B-E':{id:'B-E',occ:null},'C-F':{id:'C-F',occ:null}};
+const TRAINS={t1:{id:'t1',route:'t1',si:0,ni:null,prog:0,status:'stopped',dir:'fwd',block:null},t2:{id:'t2',route:'t2',si:3,ni:null,prog:0,status:'stopped',dir:'rev',block:null}};
+
+function blkId(a,b){return [a,b].sort().join('-')}
+
+function nextIdx(tr){
+  const r=ROUTES[tr.route].stations,n=r.length;
+  if(tr.dir==='fwd') return tr.si<n-1?tr.si+1:null;
+  return tr.si>0?tr.si-1:null;
+}
+
+function canMove(tid){
+  const tr=TRAINS[tid];
+  const ni=nextIdx(tr);
+  if(ni===null) return{ok:false,reason:'End of line'};
+  const r=ROUTES[tr.route].stations;
+  const bid=blkId(r[tr.si],r[ni]);
+  const blk=BLOCKS[bid];
+  if(blk.occ&&blk.occ!==tid){
+    const nm=blk.occ==='t1'?'Highland Express':'Coastal Runner';
+    return{ok:false,reason:`Track occupied by ${nm}`};
+  }
+  return{ok:true,bid,ni,from:r[tr.si],to:r[ni]};
+}
+
+function handleMove(tid){
+  const tr=TRAINS[tid];
+  if(tr.status==='moving') return;
+  const chk=canMove(tid);
+  
+  if(!chk.ok){
+    tr.status='waiting';
+    document.getElementById(`wm-${tid}`).textContent=chk.reason;
+    addLog(tid,`Waiting — ${chk.reason}`,'warn');
+    updateUI(); // DON'T PUT IT HERE (Train is just waiting)
+    return;
+  }
+  
+  BLOCKS[chk.bid].occ=tid;
+  tr.block=chk.bid;
+  tr.ni=chk.ni;
+  tr.prog=0;
+  tr.status='moving';
+  addLog(tid,`Departing ${chk.from} → ${chk.to}`,'info');
+
+  // --- ADD IOT CODE HERE ---
+  if(tid === 't1') { 
+      let speed = (tr.dir === 'fwd') ? 200 : -200;
+      sendMotorCommand(speed);
+  }
+  // -------------------------
+
+  updateUI(); // PUT IT BEFORE THIS ONE (Train is actually moving)
+}
+
+function toggleDir(tid){
+  const tr=TRAINS[tid];
+  if(tr.status==='moving') return;
+  tr.dir=tr.dir==='fwd'?'rev':'fwd';
+  if(tr.status==='waiting') tr.status='stopped';
+  addLog(tid,`Direction → ${tr.dir==='fwd'?'forward':'reverse'}`,'info');
+  updateUI();
+}
+
+function arrive(tr){
+  // --- ADD THIS AT THE TOP ---
+  if(tr.id === 't1') {
+      sendMotorCommand(0); // Stop the motor when it reaches a station
+  }
+  // ---------------------------
+
+  if(tr.block){BLOCKS[tr.block].occ=null;tr.block=null;}
+  tr.si=tr.ni;tr.ni=null;tr.prog=0;tr.status='stopped';
+  const sta=ROUTES[tr.route].stations[tr.si];
+  addLog(tr.id,`Arrived at station ${sta}`,'ok');
+  
+  Object.values(TRAINS).forEach(t=>{
+    if(t.status==='waiting'&&t.id!==tr.id){
+      setTimeout(()=>{
+          if(t.status==='waiting'){
+              addLog(t.id,'Retrying...','info');
+              handleMove(t.id);
+          }
+      },300);
+    }
+  });
+  updateUI();
+}
+const SPEED=0.005;
+let lastT=null;
+
+function animate(ts){
+  if(!lastT) lastT=ts;
+  const dt=Math.min(ts-lastT,50);lastT=ts;
+  const delta=(dt/16.67)*SPEED;
+  Object.values(TRAINS).forEach(tr=>{
+    if(tr.status!=='moving') return;
+    tr.prog+=delta;
+    if(tr.prog>=1){tr.prog=1;arrive(tr);}
+    moveSVG(tr);
+  });
+  updateSegGlows();
+  updateProgBars();
+  requestAnimationFrame(animate);
+}
+
+function getXY(tr){
+  const r=ROUTES[tr.route].stations;
+  const c=STA[r[tr.si]];
+  if(tr.ni===null) return{x:c.x,y:c.y,angle:0};
+  const n=STA[r[tr.ni]];
+  const t=tr.prog;
+  return{x:c.x+(n.x-c.x)*t,y:c.y+(n.y-c.y)*t,angle:Math.atan2(n.y-c.y,n.x-c.x)*180/Math.PI};
+}
+
+function moveSVG(tr){
+  const {x,y,angle}=getXY(tr);
+  document.getElementById(`${tr.id}-icon`).setAttribute('transform',`translate(${x},${y}) rotate(${angle})`);
+  const arr=document.getElementById(`${tr.id}-arr`);
+  if(arr){
+    if(tr.dir==='rev') arr.setAttribute('points','-14,-4 -19,0 -14,4');
+    else arr.setAttribute('points','14,-4 19,0 14,4');
+  }
+}
+
+function updateSegGlows(){
+  const segMap={'A-B':'seg-A-B','B-C':'seg-B-C','C-D':'seg-C-D','B-E':'seg-B-E','C-F':'seg-C-F'};
+  Object.values(BLOCKS).forEach(b=>{
+    const el=document.getElementById(segMap[b.id]);
+    if(!el) return;
+    if(b.occ==='t1') el.setAttribute('stroke','#378ADD');
+    else if(b.occ==='t2') el.setAttribute('stroke','#D85A30');
+    else el.setAttribute('stroke',b.id==='B-C'?'#AFA9EC':'#D3D1C7');
+  });
+}
+
+function updateProgBars(){
+  ['t1','t2'].forEach(tid=>{
+    const tr=TRAINS[tid];
+    const r=ROUTES[tr.route].stations;
+    const pb=document.getElementById(`pb-${tid}`);
+    const pf=document.getElementById(`pf-${tid}`);
+    const pp=document.getElementById(`pp-${tid}`);
+    const pt=document.getElementById(`pt-${tid}`);
+    if(tr.ni!==null){
+      const p=Math.round(tr.prog*100);
+      pb.style.width=p+'%';
+      pf.textContent=r[tr.si];pp.textContent=p+'%';pt.textContent=r[tr.ni];
+    } else {
+      pb.style.width='0%';
+      pf.textContent=r[tr.si];pp.textContent='—';pt.textContent='';
+    }
+  });
+}
+
+function calcRem(tr){
+  const r=ROUTES[tr.route].stations;
+  let total=0;
+  const dir=tr.dir==='fwd'?1:-1;
+  if(tr.ni!==null){
+    const c=STA[r[tr.si]],n=STA[r[tr.ni]];
+    total+=Math.hypot(n.x-c.x,n.y-c.y)*(1-tr.prog);
+    let i=tr.ni;
+    while(true){const j=i+dir;if(j<0||j>=r.length)break;const a=STA[r[i]],b=STA[r[j]];total+=Math.hypot(b.x-a.x,b.y-a.y);i=j;}
+  } else {
+    let i=tr.si;
+    while(true){const j=i+dir;if(j<0||j>=r.length)break;const a=STA[r[i]],b=STA[r[j]];total+=Math.hypot(b.x-a.x,b.y-a.y);i=j;}
+  }
+  return Math.round(total*0.22)+' km';
+}
+
+function updateUI(){
+  ['t1','t2'].forEach(tid=>{
+    const tr=TRAINS[tid];
+    const r=ROUTES[tr.route].stations;
+    const ni=nextIdx(tr);
+    const sp=document.getElementById(`sp-${tid}`);
+    sp.className='status-pill';
+    if(tr.status==='moving'){sp.classList.add('sp-moving');sp.textContent='Moving';}
+    else if(tr.status==='waiting'){sp.classList.add('sp-waiting');sp.textContent='Waiting';}
+    else{sp.classList.add('sp-stopped');sp.textContent='Stopped';}
+    document.getElementById(`pos-${tid}`).textContent='Sta '+r[tr.si];
+    document.getElementById(`nxt-${tid}`).textContent=ni!==null?'Sta '+r[ni]:'—';
+    document.getElementById(`dir-${tid}`).textContent=tr.dir==='fwd'?'Fwd →':'← Rev';
+    document.getElementById(`blk-${tid}`).textContent=tr.block||'—';
+    document.getElementById(`rem-${tid}`).textContent=calcRem(tr);
+    const wb=document.getElementById(`wb-${tid}`);
+    wb.className=tr.status==='waiting'?'warn-box show':'warn-box';
+    const card=document.getElementById(`card-${tid}`);
+    card.className='t-card';
+    if(tr.status==='moving') card.classList.add(`${tid}-active`);
+    if(tr.status==='waiting') card.classList.add('is-waiting');
+    const bm=document.getElementById(`bm-${tid}`);
+    const bd=document.getElementById(`bd-${tid}`);
+    bm.disabled=tr.status==='moving';
+    bd.disabled=tr.status==='moving';
+    if(!bm.disabled) bm.textContent=tr.status==='waiting'?'⟳ Retry move':'→ Move to next stop';
+    else bm.textContent='Moving...';
+    moveSVG(tr);
+  });
+  const bmap={'A-B':'br-A-B','B-C':'br-B-C','C-D':'br-C-D','B-E':'br-B-E','C-F':'br-C-F'};
+  Object.values(BLOCKS).forEach(b=>{
+    const el=document.getElementById(bmap[b.id]);
+    if(!el) return;
+    el.className='b-row';
+    const st=el.querySelector('.b-status');
+    if(b.occ==='t1'){el.classList.add('occ-t1');st.textContent='T1 active';}
+    else if(b.occ==='t2'){el.classList.add('occ-t2');st.textContent='T2 active';}
+    else st.textContent='Free';
+  });
+  updateSegGlows();
+}
+
+function addLog(tid,msg,type){
+  const log=document.getElementById('log-scroll');
+  const now=new Date();
+  const ts=[now.getHours(),now.getMinutes(),now.getSeconds()].map(n=>String(n).padStart(2,'0')).join(':');
+  const div=document.createElement('div');div.className='log-entry';
+  const sc=tid==='t1'?'l-t1':tid==='t2'?'l-t2':'l-sys';
+  const src=tid==='t1'?'T-1':tid==='t2'?'T-2':'SYS';
+  const mc=type==='warn'?'l-warn':type==='ok'?'l-ok':'l-info';
+  div.innerHTML=`<span class="l-ts">${ts}</span><span class="l-src ${sc}">[${src}]</span><span class="l-msg ${mc}">${msg}</span>`;
+  log.appendChild(div);log.scrollTop=log.scrollHeight;
+  while(log.children.length>60) log.removeChild(log.firstChild);
+}
+
+updateUI();
+updateSegGlows();
+addLog('sys','System online — dual train controller ready','ok');
+addLog('sys','Train 1 (Highland) at station A, route Alpha','info');
+addLog('sys','Train 2 (Coastal) at station F, route Beta','info');
+addLog('sys','Block B–C is shared — single occupancy enforced','warn');
+requestAnimationFrame(animate);
+</script>
+</body>
+</html>
